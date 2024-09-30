@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Drone Control</title>
+    <style>
+        body {
+            font-family: sans-serif;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        #login-form {
+            margin: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        #login-form label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        #login-form input[type="text"],
+        #login-form input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Drone Control</h1>
+
+    <div id="login-form">
+        <h2>Login</h2>
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username">
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password">
+        <button id="login">Login</button>
+    </div>
+
+    <div id="controls" style="display: none;">
+        <h2>Drone Controls</h2>
+        <button id="takeoff">Take Off</button>
+        <button id="land">Land</button>
+        <button id="patrol">Patrol</button>
+        <button id="capture_photo">Capture Photo</button>
+        <button id="record_video">Record Video</button>
+    </div>
+
+    <div id="status"></div>
+
+    <script>
+        const websocket = new WebSocket('ws://localhost:8765');
+        const statusDiv = document.getElementById('status');
+        const controlsDiv = document.getElementById('controls');
+        const loginForm = document.getElementById('login-form');
+        const loginButton = document.getElementById('login');
+
+        websocket.onopen = function(event) {
+            console.log('WebSocket connection opened.');
+        };
+
+        websocket.onmessage = function(event) {
+            const message = event.data;
+            console.log('Received message:', message);
+
+            if (message.startsWith("JWT:")) {
+                // Сохранение JWT-токена
+                localStorage.setItem("jwtToken", message.substring(4));
+                console.log("JWT token saved to localStorage");
+                loginForm.style.display = "none";
+                controlsDiv.style.display = "block";
+            } else if (message.startsWith("STATUS_UPDATE:")) {
+                statusDiv.textContent = message.substring(14);
+            } else if (message.startsWith("ERROR:")) {
+                statusDiv.textContent = "Error: " + message.substring(6);
+            }
+        };
+
+        websocket.onclose = function(event) {
+            console.log('WebSocket connection closed.');
+        };
+
+        // Обработка нажатия кнопки Login
+        loginButton.onclick = () => {
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+            websocket.send(`LOGIN:${username},${password}`);
+        };
+
+        // Обработка нажатий кнопок управления дроном
+        const buttons = document.querySelectorAll('#controls button');
+        buttons.forEach(button => {
+            button.onclick = () => {
+                // Получение JWT-токена из localStorage
+                const jwtToken = localStorage.getItem("jwtToken");
+                if (jwtToken) {
+                    const command = button.id;
+                    websocket.send(`COMMAND:${command}`);
+                    statusDiv.textContent = `Command sent: ${command}`;
+                } else {
+                    statusDiv.textContent = "Please log in first!";
+                }
+            };
+        });
+    </script>
+</body>
+</html>
